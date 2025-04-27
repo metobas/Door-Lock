@@ -1,0 +1,235 @@
+# IR Remote Controlled Stepper Motor Lock System
+
+## Overview
+
+This project demonstrates a simple password-protected lock system controlled by an IR remote. When the correct 4-digit password is entered using the remote, a stepper motor is activated to simulate unlocking a gate. An LCD screen provides user feedback, displaying prompts and indicating whether the entered password is correct or incorrect. This project serves as a foundational step towards understanding IoT concepts, particularly in the realm of remote control and physical security.
+
+## Components
+
+* **Arduino Board:** (e.g., Arduino Uno) - The microcontroller that controls the entire system.
+* **IR Remote Kit:**
+    * IR Remote Control
+    * IR Receiver Module
+* **LCD I2C Module (16x2):** Displays instructions and feedback to the user.
+* **Stepper Motor (with Driver):** Simulates the locking/unlocking mechanism of a gate. The code is written for a 2048-step stepper motor.
+* **Jumper Wires:** For connecting the components.
+* **Power Supply:** To power the Arduino and other components.
+* **LEDs (Green and Red):** Visually indicate whether the password was correct (Green) or incorrect (Red).
+* **Resistors (for LEDs):** To limit the current flowing through the LEDs.
+
+## Wiring Diagram
+
+While a visual diagram is best, here's a textual representation of the connections:
+
+* **IR Receiver:**
+    * VCC to Arduino 5V
+    * GND to Arduino GND
+    * OUT to Arduino Digital Pin 3
+* **LCD I2C Module:**
+    * VCC to Arduino 5V
+    * GND to Arduino GND
+    * SDA to Arduino Analog Pin A4 (SDA)
+    * SCL to Arduino Analog Pin A5 (SCL)
+* **Stepper Motor:** Connect to the appropriate pins on your stepper motor driver. Then connect the driver's power and control signals to the Arduino (Digital Pins 8, 10, 9, 11 as defined in the code). **Refer to your stepper motor driver's datasheet for specific wiring instructions.**
+* **Green LED:**
+    * Positive (+) leg (anode) to Arduino Digital Pin 6 (with a current-limiting resistor in between).
+    * Negative (-) leg (cathode) to Arduino GND.
+* **Red LED:**
+    * Positive (+) leg (anode) to Arduino Digital Pin 7 (with a current-limiting resistor in between).
+    * Negative (-) leg (cathode) to Arduino GND.
+
+**Note:** Ensure you have the correct I2C address for your LCD module (it's set to `0x27` in the code, but it might be different). You can use an I2C scanner sketch to find the correct address if needed.
+
+## Code Explanation
+
+```arduino
+#include <IRremote.h>
+#include <LCD_I2C.h>
+#include <Stepper.h>
+
+// Define the pin connected to the IR receiver
+int remotePin = 3;
+IRrecv remote(remotePin);
+decode_results cmd;
+
+// Initialize the LCD I2C object with the address, number of columns, and rows
+LCD_I2C lcd(0x27, 16, 2);
+
+// Initialize the stepper motor object with the number of steps per revolution and the control pin numbers
+Stepper myStepper = Stepper(2048, 8, 10, 9, 11);
+
+// Define stepper motor speed
+int stepperSpeed = 18;
+// Variables for LCD cursor position (not actively used in this version)
+int cursorCol = 0;
+int cursorRow = 0;
+// Array to store the entered password
+int password[4];
+// Index to keep track of the current digit being entered
+int i = 0;
+
+// Define the digital pins for the LEDs
+int const greenPin = 6;
+int const redPin = 7;
+
+// Define the delay for the lock/unlock animation
+int const waitLock = 5000;
+
+void setup() {
+  // Initialize serial communication for debugging
+  Serial.begin(19200);
+  // Enable receiving IR signals
+  remote.enableIRIn();
+
+  // Initialize the LCD
+  lcd.begin();
+  // Turn on the backlight
+  lcd.backlight();
+  // Turn on the cursor (can be removed if not desired)
+  lcd.blink();
+  lcd.cursor();
+  lcd.setCursor(cursorCol, cursorRow);
+
+  // Set the speed of the stepper motor (in RPM)
+  myStepper.setSpeed(stepperSpeed);
+
+  // Set the LED pins as output
+  pinMode(greenPin, OUTPUT);
+  pinMode(redPin, OUTPUT);
+
+  // Display the initial message on the LCD
+  lcd.print("Enter Password:");
+  lcd.setCursor(0, 1);
+}
+
+void loop() {
+  // Continuously check for incoming IR signals
+  while (remote.decode(&cmd) == 0) {
+    // Do nothing while no signal is received
+  }
+  //================================================================
+  // If an IR signal is decoded
+  if (remote.decode(&cmd)) {
+    // Reset the password index if more than 4 digits are entered (for simplicity)
+    if (i > 3) {
+      i = 0;
+    }
+    // Store the received button value into the password array
+    password[i] = cmd.value;
+    // Increment the password index
+    i++;
+  }
+  // Control the LCD backlight based on specific button presses
+  if (cmd.value == 0xFF6897) { // * button
+    lcd.backlight();
+  }
+
+  if (cmd.value == 0xFFB04F) { // # button
+    lcd.noBacklight();
+  }
+
+  // Handle number button presses and display them on the LCD and serial monitor
+  if (cmd.value == 0xFF9867) { // ZERO
+    lcd.print("0");
+    Serial.print(0);
+  }
+
+  if (cmd.value == 0xFFA25D) { // ONE
+    lcd.print("1");
+    Serial.print(1);
+  }
+
+  if (cmd.value == 0xFF629D) { // TWO
+    lcd.print("2");
+    Serial.print(2);
+  }
+
+  if (cmd.value == 0xFFE21D) { // THREE
+    lcd.print("3");
+    Serial.print(3);
+  }
+
+  if (cmd.value == 0xFF22DD) { // FOUR
+    lcd.print("4");
+    Serial.print(4);
+  }
+
+  if (cmd.value == 0xFF02FD) { // FIVE
+    lcd.print("5");
+    Serial.print(5);
+  }
+
+  if (cmd.value == 0xFFC23D) { // SIX
+    lcd.print("6");
+    Serial.print(6);
+  }
+
+  if (cmd.value == 0xFFE01F) { // SEVEN
+    lcd.print("7");
+    Serial.print(7);
+  }
+
+  if (cmd.value == 0xFFA857) { // EIGHT
+    lcd.print("8");
+    Serial.print(8);
+  }
+
+  if (cmd.value == 0xFF906F) { // NINE
+    lcd.print("9");
+    Serial.print(9);
+  }
+  //================================================================
+
+  // Check if the "OK" button is pressed
+  if (cmd.value == 0xFF38C7) { // OK button
+    // Clear the LCD
+    lcd.clear();
+    // Check if the entered password matches the predefined password
+    if (password[0] == 14535 && password[1] == -23971 && password[2] == 25245 && password[3] == -7651) {
+      // Turn on the green LED
+      digitalWrite(greenPin, HIGH);
+      // Display a welcome message
+      lcd.print("Welcome Home");
+      // Rotate the stepper motor to simulate unlocking (adjust steps as needed)
+      myStepper.step(2048 / 3);
+      // Wait for a specified time
+      delay(waitLock);
+      // Clear the LCD
+      lcd.clear();
+      // Turn off the green LED and turn on the red LED
+      digitalWrite(greenPin, LOW);
+      digitalWrite(redPin, HIGH);
+      // Display a closing message
+      lcd.print("closing gate");
+      // Rotate the stepper motor back to simulate locking
+      myStepper.step(-2048 / 3);
+      // Turn off the red LED
+      digitalWrite(redPin, LOW);
+    } else {
+      // Display an "Invalid Password" message
+      lcd.print("Invalid Password");
+      // Turn on the red LED
+      digitalWrite(redPin, HIGH);
+      // Wait for a short time
+      delay(2000);
+      // Turn off the red LED
+      digitalWrite(redPin, LOW);
+    }
+    // Print the entered password to the serial monitor for debugging
+    Serial.print("password: ");
+    for (int j = 0; j <= 3; j++) {
+      Serial.println(password[j]);
+    }
+    Serial.println();
+    // Clear the LCD and prompt for the password again
+    lcd.clear();
+    lcd.print("Enter Password:");
+    lcd.setCursor(0, 1);
+    // Reset the password index
+    i = 0;
+  }
+  // Small delay for debouncing and to avoid overwhelming the Arduino
+  delay(200);
+  // Prepare the IR receiver to receive the next signal
+  remote.resume();
+}
